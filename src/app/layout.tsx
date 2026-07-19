@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { ThemeProvider } from "@/components/shared/theme-provider";
@@ -6,6 +7,7 @@ import { SiteHeader } from "@/components/shared/site-header";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { siteConfig } from "@/config/site";
+import { getLocale, LOCALE_COOKIE } from "@/lib/i18n/messages";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,14 +51,17 @@ export const viewport: Viewport = {
   themeColor: "#2563eb",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const locale = getLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+
   return (
     <html
-      lang="ms"
+      lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
       data-scroll-behavior="smooth"
       suppressHydrationWarning

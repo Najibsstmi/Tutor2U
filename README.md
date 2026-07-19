@@ -45,6 +45,13 @@ PAYMENT_PROVIDER=placeholder
 
 Jangan commit secret key.
 
+## New Milestone 2 Routes
+
+- Tutor onboarding: `http://localhost:3000/dashboard/tutor/onboarding`
+- Admin verification: `http://localhost:3000/dashboard/admin/tutor-applications`
+
+Use the demo login flow and choose the matching role before opening each dashboard route.
+
 ## Supabase Setup
 
 1. Cipta projek Supabase.
@@ -54,7 +61,10 @@ Jangan commit secret key.
 supabase db push
 ```
 
-Atau jalankan SQL dalam `supabase/migrations/0001_initial_schema.sql` melalui SQL editor.
+Atau jalankan SQL migration berikut melalui SQL editor mengikut turutan:
+
+1. `supabase/migrations/0001_initial_schema.sql`
+2. `supabase/migrations/0002_tutor_onboarding_verification.sql`
 
 3. Jalankan seed data:
 
@@ -64,7 +74,12 @@ supabase db seed
 
 Atau jalankan `supabase/seed.sql` melalui SQL editor.
 
-4. Pastikan bucket `tutor-documents` wujud dan private. Migration akan cuba menciptanya jika schema Storage tersedia.
+4. Pastikan bucket berikut wujud:
+
+- `tutor-documents` private legacy bucket
+- `tutor-identity-documents` private
+- `tutor-qualification-documents` private
+- `tutor-profile-images` public atau safe public profile image mechanism
 
 ## Database and RLS
 
@@ -83,6 +98,20 @@ RLS memastikan parent hanya melihat anak sendiri, tutor hanya melihat murid/kela
 
 Double booking dicegah melalui unique partial index pada `booking_sessions` untuk slot tutor aktif.
 
+Milestone 2 menambah:
+
+- `tutor_applications`
+- `tutor_experiences`
+- `tutor_education_levels`
+- `tutor_curriculums`
+- `tutor_categories`
+- `tutor_profile_categories`
+- `tutor_rates`
+- `tutor_verification_actions`
+- transition trigger untuk status permohonan tutor
+- trigger menghalang slot availability bertindih
+- RLS untuk aplikasi, dokumen private, kadar, kategori dan audit tindakan
+
 ## Project Structure
 
 ```txt
@@ -92,19 +121,39 @@ src/components/dashboards
 src/components/marketplace
 src/components/pwa
 src/components/shared
+src/components/tutor-onboarding
+src/components/admin
 src/components/ui
+src/lib/i18n
+src/lib/tutor-onboarding
 src/lib
 supabase/migrations
 supabase/seed.sql
 docs/architecture.md
+docs/milestone-1-audit.md
+docs/tutor-onboarding.md
+docs/tutor-verification-workflow.md
+docs/storage-security.md
+docs/status-transitions.md
 ```
 
 ## Validation
 
 ```bash
 npm run lint
+npm run typecheck
+npm run test
 npm run build
 ```
+
+## Bilingual Text
+
+New Milestone 2 text is centralized in:
+
+- `messages/ms.json`
+- `messages/en.json`
+
+Language selection is stored in the `tutor2u_locale` cookie. Older Fasa 1 pages still contain hardcoded BM copy and should be migrated incrementally.
 
 ## Vercel Deployment
 
@@ -115,3 +164,5 @@ npm run build
 5. Set `NEXT_PUBLIC_APP_URL` kepada production URL.
 
 Payment gateway masih placeholder dalam Fasa 1, tetapi jadual `payments` dan `tutor_payouts` sudah bersedia untuk integrasi provider sebenar.
+
+Tutor onboarding and admin verification are implemented as local demo flows with production-oriented database/RLS architecture. Live persistence requires wiring the new routes to Supabase server actions and Storage signed URL APIs.

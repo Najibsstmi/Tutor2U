@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Banknote, CalendarClock, ClipboardList, FileCheck2, Users } from "lucide-react";
@@ -18,11 +19,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MetricCard } from "@/components/shared/metric-card";
 import { parentBookings, progressSeries, students, tutorEarnings } from "@/lib/demo-data";
+import { useTranslations } from "@/lib/i18n/use-translations";
 import { reportSchema } from "@/lib/validation";
 
 type ReportValues = z.infer<typeof reportSchema>;
 
 export function TutorDashboard() {
+  const { t } = useTranslations();
   const form = useForm<ReportValues>({
     resolver: zodResolver(reportSchema),
     defaultValues: {
@@ -53,6 +56,18 @@ export function TutorDashboard() {
         <MetricCard label="Laporan belum hantar" value="2" hint="SLA 24 jam" icon={ClipboardList} tone="amber" />
         <MetricCard label="Pendapatan bulan ini" value="RM3.38k" hint="Payout RM2.87k" icon={Banknote} tone="green" />
       </div>
+
+      <Card className="rounded-lg border-blue-200 bg-blue-50 shadow-none">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-950">{t("dashboardLinks.tutorOnboarding")}</h2>
+            <p className="text-sm text-slate-600">{t("dashboardLinks.tutorOnboardingHint")}</p>
+          </div>
+          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+            <Link href="/dashboard/tutor/onboarding">{t("dashboardLinks.tutorOnboarding")}</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="ringkasan" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-7">

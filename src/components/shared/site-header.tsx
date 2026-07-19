@@ -7,19 +7,22 @@ import { BookOpenCheck, GraduationCap, Menu, Search, ShieldCheck, UserRound } fr
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { siteConfig } from "@/config/site";
+import { useTranslations } from "@/lib/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/cari-tutor", label: "Cari tutor", icon: Search },
-  { href: "/cara-ia-berfungsi", label: "Cara ia berfungsi", icon: BookOpenCheck },
-  { href: "/kategori-tutor", label: "Kategori", icon: GraduationCap },
-  { href: "/jadi-tutor", label: "Jadi tutor", icon: UserRound },
-  { href: "/dashboard/admin", label: "Admin", icon: ShieldCheck },
+  { href: "/cari-tutor", labelKey: "nav.searchTutors", icon: Search },
+  { href: "/cara-ia-berfungsi", labelKey: "nav.howItWorks", icon: BookOpenCheck },
+  { href: "/kategori-tutor", labelKey: "nav.categories", icon: GraduationCap },
+  { href: "/jadi-tutor", labelKey: "nav.becomeTutor", icon: UserRound },
+  { href: "/dashboard/admin", labelKey: "nav.admin", icon: ShieldCheck },
 ];
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const { t } = useTranslations();
 
   const nav = (
     <nav className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-1">
@@ -37,7 +40,7 @@ export function SiteHeader() {
             )}
           >
             <Icon className="size-4" />
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}
@@ -62,17 +65,18 @@ export function SiteHeader() {
         <div className="hidden items-center gap-2 lg:flex">{nav}</div>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <LanguageSwitcher />
           <Button asChild variant="ghost">
-            <Link href="/login">Login</Link>
+            <Link href="/login">{t("nav.login")}</Link>
           </Button>
           <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
-            <Link href="/daftar">Daftar</Link>
+            <Link href="/daftar">{t("nav.signup")}</Link>
           </Button>
         </div>
 
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="lg:hidden" aria-label="Buka menu">
+            <Button variant="outline" size="icon" className="lg:hidden" aria-label={t("nav.openMenu")}>
               <Menu className="size-4" />
             </Button>
           </SheetTrigger>
@@ -89,12 +93,13 @@ export function SiteHeader() {
             </SheetTitle>
             <div className="mt-6 flex flex-col gap-4">
               {nav}
+              <LanguageSwitcher />
               <div className="grid grid-cols-2 gap-2">
                 <Button asChild variant="outline">
-                  <Link href="/login">Login</Link>
+                  <Link href="/login">{t("nav.login")}</Link>
                 </Button>
                 <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
-                  <Link href="/daftar">Daftar</Link>
+                  <Link href="/daftar">{t("nav.signup")}</Link>
                 </Button>
               </div>
             </div>

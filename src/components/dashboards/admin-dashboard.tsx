@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Banknote, BookOpenCheck, CalendarClock, FileCheck2, FileWarning, ShieldCheck, Star, Users } from "lucide-react";
@@ -13,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricCard } from "@/components/shared/metric-card";
 import { adminStats, adminTutorReviews, progressSeries, tutorEarnings } from "@/lib/demo-data";
+import { useTranslations } from "@/lib/i18n/use-translations";
 import type { AdminTutorReview } from "@/lib/types";
 
 const statusClass: Record<AdminTutorReview["status"], string> = {
@@ -22,6 +24,7 @@ const statusClass: Record<AdminTutorReview["status"], string> = {
 };
 
 export function AdminDashboard() {
+  const { t } = useTranslations();
   const [reviews, setReviews] = useState(adminTutorReviews);
 
   function updateTutorStatus(id: string, status: AdminTutorReview["status"]) {
@@ -43,6 +46,18 @@ export function AdminDashboard() {
         <MetricCard label="Tempahan hari ini" value="7" hint="3 belum disahkan" icon={CalendarClock} tone="blue" />
         <MetricCard label="Bayaran tertunggak" value="RM3.1k" hint="5 payout pending" icon={Banknote} tone="amber" />
       </div>
+
+      <Card className="rounded-lg border-blue-200 bg-blue-50 shadow-none">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-950">{t("dashboardLinks.adminVerification")}</h2>
+            <p className="text-sm text-slate-600">{t("dashboardLinks.adminVerificationHint")}</p>
+          </div>
+          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+            <Link href="/dashboard/admin/tutor-applications">{t("dashboardLinks.adminVerification")}</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="ringkasan" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-7">

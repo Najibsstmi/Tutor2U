@@ -751,10 +751,10 @@ for insert with check (
     select 1
     from public.booking_sessions bs
     join public.bookings b on b.id = bs.booking_id
-    where bs.id = booking_session_id
+    where bs.id = public.reviews.booking_session_id
       and bs.status = 'completed'
-      and b.parent_profile_id = parent_profile_id
-      and b.tutor_profile_id = tutor_profile_id
+      and b.parent_profile_id = public.reviews.parent_profile_id
+      and b.tutor_profile_id = public.reviews.tutor_profile_id
   )
 );
 

@@ -14,8 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { roleDashboardPaths, roleLabels } from "@/lib/auth/roles";
-import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/browser";
+import { loginWithPassword, registerWithPassword } from "@/lib/auth/actions";
+import { roleLabels } from "@/lib/auth/roles";
 import { authSchema } from "@/lib/validation";
 
 type AuthValues = z.infer<typeof authSchema>;
@@ -29,13 +29,12 @@ export function AuthPanel({ mode }: AuthPanelProps) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<AuthValues["role"]>("parent");
-  const configured = isSupabaseConfigured();
 
   const form = useForm<AuthValues>({
     resolver: zodResolver(authSchema),
     defaultValues: {
-      email: mode === "login" ? "farah.parent@tutor2u.test" : "",
-      password: mode === "login" ? "Password123!" : "",
+      email: "",
+      password: "",
       role: "parent",
     },
   });
@@ -44,32 +43,32 @@ export function AuthPanel({ mode }: AuthPanelProps) {
     setLoading(true);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-
-      if (configured && supabase) {
-        const result =
-          mode === "login"
-            ? await supabase.auth.signInWithPassword({
-                email: values.email,
-                password: values.password,
-              })
-            : await supabase.auth.signUp({
-                email: values.email,
-                password: values.password,
-                options: { data: { role: values.role } },
-              });
-
-        if (result.error) {
-          toast.error(result.error.message);
-          return;
-        }
+      if (mode === "register" && values.role === "admin") {
+        toast.error("Role admin tidak boleh didaftarkan melalui borang awam.");
+        return;
       }
 
-      document.cookie = `tutor2u_demo_role=${values.role}; path=/; max-age=604800; SameSite=Lax`;
-      toast.success(`${roleLabels[values.role]} berjaya masuk.`);
+      const requestedPath = searchParams.get("next") ?? undefined;
+      const result =
+        mode === "login"
+          ? await loginWithPassword({ ...values, nextPath: requestedPath })
+          : await registerWithPassword({
+              email: values.email,
+              password: values.password,
+              role: values.role === "admin" ? "parent" : values.role,
+              nextPath: requestedPath,
+            });
 
-      const requestedPath = searchParams.get("next");
-      router.push(requestedPath?.startsWith("/dashboard") ? requestedPath : roleDashboardPaths[values.role]);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.role ? `${roleLabels[result.role]} berjaya masuk.` : result.message);
+
+      if (result.redirectTo) {
+        router.push(result.redirectTo);
+      }
     } finally {
       setLoading(false);
     }
@@ -86,8 +85,8 @@ export function AuthPanel({ mode }: AuthPanelProps) {
         <CardTitle>{mode === "login" ? "Login Tutor2U" : "Daftar akaun Tutor2U"}</CardTitle>
         <CardDescription>
           {mode === "login"
-            ? "Pilih role demo atau gunakan akaun Supabase anda."
-            : "Akaun baru akan disediakan mengikut role yang dipilih."}
+            ? "Masuk menggunakan akaun Supabase Tutor2U anda."
+            : "Akaun baru akan disediakan mengikut jenis akaun yang dipilih."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -108,7 +107,7 @@ export function AuthPanel({ mode }: AuthPanelProps) {
               <SelectContent>
                 <SelectItem value="parent">Ibu bapa</SelectItem>
                 <SelectItem value="tutor">Tutor</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                {mode === "login" ? <SelectItem value="admin">Admin</SelectItem> : null}
               </SelectContent>
             </Select>
           </div>
@@ -133,10 +132,6 @@ export function AuthPanel({ mode }: AuthPanelProps) {
             {loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}
           </Button>
         </form>
-
-        <div className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-          {configured ? "Supabase aktif untuk projek ini." : "Mod demo aktif kerana env Supabase belum ditetapkan."}
-        </div>
 
         <p className="mt-5 text-center text-sm text-slate-500">
           {mode === "login" ? "Belum ada akaun?" : "Sudah ada akaun?"}{" "}

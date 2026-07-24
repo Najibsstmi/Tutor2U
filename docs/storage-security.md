@@ -29,3 +29,22 @@ Use an owner-scoped prefix when uploading private files:
 ```
 
 The storage insert policies use the first folder segment to match `auth.uid()`.
+# Milestone 3 Addendum
+
+New storage helpers and upload route:
+
+- `src/lib/tutor-onboarding/storage.ts`
+- `src/app/api/tutor-onboarding/documents/route.ts`
+
+The route requires a logged-in tutor, validates MIME type and size, scopes object paths to `profileId/applicationId/scope`, uploads to the correct bucket and inserts metadata into `tutor_documents`.
+
+Accepted MIME types:
+
+- `image/png`
+- `image/jpeg`
+- `image/jpg`
+- `application/pdf`
+
+Maximum size: 5MB.
+
+Migration `0003_live_auth_onboarding_integration.sql` adds owner update/delete policies for tutor document buckets. Private read policies still require owner/admin access and signed URLs should be generated server-side only.

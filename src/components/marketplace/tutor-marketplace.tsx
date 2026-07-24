@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { students, subjects, states, levels, curriculums, tutors } from "@/lib/demo-data";
+import { students } from "@/lib/demo-data";
 import type { ClassMode, SlotStatus, Tutor } from "@/lib/types";
 import { bookingSchema } from "@/lib/validation";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,12 @@ const statusTone: Record<SlotStatus, string> = {
   Unavailable: "border-red-200 bg-red-50 text-red-700",
 };
 
-export function TutorMarketplace() {
+type TutorMarketplaceProps = {
+  initialTutors?: Tutor[];
+};
+
+export function TutorMarketplace({ initialTutors }: TutorMarketplaceProps) {
+  const allTutors = useMemo(() => initialTutors ?? [], [initialTutors]);
   const [subject, setSubject] = useState("all");
   const [state, setState] = useState("all");
   const [level, setLevel] = useState("all");
@@ -60,6 +65,10 @@ export function TutorMarketplace() {
   const [selectedSubject, setSelectedSubject] = useState("Matematik");
   const [selectedMode, setSelectedMode] = useState<ClassMode>("Online");
   const [selectedSlotId, setSelectedSlotId] = useState("");
+  const subjectValues = useMemo(() => Array.from(new Set(allTutors.flatMap((tutor) => tutor.subjects))).sort(), [allTutors]);
+  const stateValues = useMemo(() => Array.from(new Set(allTutors.map((tutor) => tutor.state))).sort(), [allTutors]);
+  const levelValues = useMemo(() => Array.from(new Set(allTutors.flatMap((tutor) => tutor.levels))).sort(), [allTutors]);
+  const curriculumValues = useMemo(() => Array.from(new Set(allTutors.flatMap((tutor) => tutor.curriculums))).sort(), [allTutors]);
 
   const form = useForm<BookingValues>({
     resolver: zodResolver(bookingSchema),
@@ -94,7 +103,7 @@ export function TutorMarketplace() {
   }
 
   const filteredTutors = useMemo(() => {
-    return tutors.filter((tutor) => {
+    return allTutors.filter((tutor) => {
       const hasAvailableSlot = tutor.slots.some((slot) => slot.status === "Available");
 
       return (
@@ -110,10 +119,10 @@ export function TutorMarketplace() {
         (!availableOnly || hasAvailableSlot)
       );
     });
-  }, [availableOnly, curriculum, gender, level, maxPrice, minRating, minScore, mode, state, subject]);
+  }, [allTutors, availableOnly, curriculum, gender, level, maxPrice, minRating, minScore, mode, state, subject]);
 
   const compareTutors = compareIds
-    .map((id) => tutors.find((tutor) => tutor.id === id))
+    .map((id) => allTutors.find((tutor) => tutor.id === id))
     .filter((tutor): tutor is Tutor => Boolean(tutor));
 
   function toggleFavourite(tutorId: string) {
@@ -141,7 +150,7 @@ export function TutorMarketplace() {
     const student = students.find((item) => item.id === values.studentId);
     const slot = bookingTutor?.slots.find((item) => item.id === values.slotId);
 
-    toast.success("Tempahan demo direkodkan.", {
+    toast.success("Permintaan tempahan direkodkan.", {
       description: `${student?.name ?? "Murid"} bersama ${bookingTutor?.name ?? "tutor"} pada ${slot?.day ?? ""} ${slot?.time ?? ""}.`,
     });
     setBookingTutor(null);
@@ -157,10 +166,10 @@ export function TutorMarketplace() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <FilterSelect label="Subjek" value={subject} onChange={setSubject} values={subjects} />
-          <FilterSelect label="Negeri" value={state} onChange={setState} values={states} />
-          <FilterSelect label="Tahap" value={level} onChange={setLevel} values={levels} />
-          <FilterSelect label="Kurikulum" value={curriculum} onChange={setCurriculum} values={curriculums} />
+          <FilterSelect label="Subjek" value={subject} onChange={setSubject} values={subjectValues} />
+          <FilterSelect label="Negeri" value={state} onChange={setState} values={stateValues} />
+          <FilterSelect label="Tahap" value={level} onChange={setLevel} values={levelValues} />
+          <FilterSelect label="Kurikulum" value={curriculum} onChange={setCurriculum} values={curriculumValues} />
           <FilterSelect label="Mod kelas" value={mode} onChange={setMode} values={modes} />
           <FilterSelect label="Jantina tutor" value={gender} onChange={setGender} values={["Perempuan", "Lelaki"]} />
 
@@ -226,7 +235,7 @@ export function TutorMarketplace() {
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Tempah kelas dengan {bookingTutor?.name}</DialogTitle>
-            <DialogDescription>Payment gateway sebenar digantikan dengan placeholder untuk Fasa 1.</DialogDescription>
+            <DialogDescription>Payment gateway akan disambungkan pada fasa pembayaran.</DialogDescription>
           </DialogHeader>
 
           {bookingTutor ? (

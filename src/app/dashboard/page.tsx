@@ -1,13 +1,12 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { isRole, roleDashboardPaths } from "@/lib/auth/roles";
+import { roleDashboardPaths } from "@/lib/auth/roles";
+import { getDashboardRole } from "@/lib/auth/server";
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const role = cookieStore.get("tutor2u_demo_role")?.value;
+  const role = await getDashboardRole();
 
-  if (isRole(role)) {
+  if (role) {
     redirect(roleDashboardPaths[role]);
   }
 

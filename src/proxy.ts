@@ -1,32 +1,46 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isRole } from "@/lib/auth/roles";
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  let hasUser = false;
 
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const roleSegment = pathname.split("/")[2];
+  if (supabaseUrl && supabaseAnonKey) {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    });
 
-  if (!pathname.startsWith("/dashboard/") || !isRole(roleSegment)) {
-    return NextResponse.next();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    hasUser = Boolean(user);
   }
 
-  const currentRole = request.cookies.get("tutor2u_demo_role")?.value;
+  const { pathname } = request.nextUrl;
 
-  if (!isRole(currentRole)) {
+  if (!pathname.startsWith("/dashboard/")) {
+    return response;
+  }
+
+  if (!hasUser) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (currentRole !== roleSegment) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = `/dashboard/${currentRole}`;
-    dashboardUrl.searchParams.delete("next");
-    return NextResponse.redirect(dashboardUrl);
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

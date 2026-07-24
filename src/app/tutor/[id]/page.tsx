@@ -8,19 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { tutors } from "@/lib/demo-data";
+import { getMarketplaceTutorById } from "@/lib/marketplace/live-tutors";
 
 type TutorPageProps = {
   params: Promise<{ id: string }>;
 };
 
 export function generateStaticParams() {
-  return tutors.map((tutor) => ({ id: tutor.id }));
+  return [];
 }
+
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 export async function generateMetadata({ params }: TutorPageProps): Promise<Metadata> {
   const { id } = await params;
-  const tutor = tutors.find((item) => item.id === id);
+  const tutor = await getMarketplaceTutorById(id);
 
   return {
     title: tutor ? tutor.name : "Profil Tutor",
@@ -29,7 +32,7 @@ export async function generateMetadata({ params }: TutorPageProps): Promise<Meta
 
 export default async function TutorProfilePage({ params }: TutorPageProps) {
   const { id } = await params;
-  const tutor = tutors.find((item) => item.id === id);
+  const tutor = await getMarketplaceTutorById(id);
 
   if (!tutor) {
     notFound();
@@ -71,7 +74,7 @@ export default async function TutorProfilePage({ params }: TutorPageProps) {
                   <p className="mt-2 text-lg text-slate-600">{tutor.title}</p>
                   <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
                     <MapPin className="size-4" />
-                    {tutor.district}, {tutor.state} - {tutor.distanceKm} km dari kawasan demo
+                    {tutor.district}, {tutor.state} - {tutor.distanceKm} km
                   </p>
                 </div>
                 <div className="rounded-lg bg-blue-50 p-4 text-blue-900">

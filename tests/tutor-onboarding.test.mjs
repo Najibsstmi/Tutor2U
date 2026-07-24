@@ -19,8 +19,11 @@ async function importTypeScript(path) {
 const statusModule = await importTypeScript("src/lib/tutor-onboarding/status-transitions.ts");
 const availabilityModule = await importTypeScript("src/lib/tutor-onboarding/availability.ts");
 const accessModule = await importTypeScript("src/lib/tutor-onboarding/access-control.ts");
+const storageModule = await importTypeScript("src/lib/tutor-onboarding/storage.ts");
+const rolesModule = await importTypeScript("src/lib/auth/roles.ts");
 const msMessages = JSON.parse(await readFile("messages/ms.json", "utf8"));
 const enMessages = JSON.parse(await readFile("messages/en.json", "utf8"));
+const milestone3Migration = await readFile("supabase/migrations/0003_live_auth_onboarding_integration.sql", "utf8");
 
 test("invalid tutor application status transitions are rejected", () => {
   assert.equal(statusModule.canTransition("draft", "approved"), false);
@@ -134,4 +137,37 @@ test("language switch keys exist on onboarding pages", () => {
   assert.equal(enMessages.onboarding.title.length > 0, true);
   assert.equal(msMessages.nav.searchTutors.length > 0, true);
   assert.equal(enMessages.nav.searchTutors.length > 0, true);
+});
+
+test("public registration roles exclude admin", () => {
+  assert.equal(rolesModule.isPublicRegistrationRole("parent"), true);
+  assert.equal(rolesModule.isPublicRegistrationRole("tutor"), true);
+  assert.equal(rolesModule.isPublicRegistrationRole("admin"), false);
+});
+
+test("storage helper sanitizes filenames and keeps tutor document paths scoped", () => {
+  assert.equal(storageModule.sanitizeFileName("../../My Kad FRONT!!.PDF"), "my-kad-front-.pdf");
+  assert.equal(
+    storageModule.buildTutorDocumentPath({
+      profileId: "profile-1",
+      applicationId: "application-1",
+      scope: "identity_front",
+      fileName: "../../My Kad FRONT!!.PDF",
+      now: new Date("2026-07-20T00:00:00.000Z"),
+      randomId: "fixed",
+    }),
+    "profile-1/application-1/identity_front/2026-07-20T00-00-00-000Z-fixed-my-kad-front-.pdf",
+  );
+});
+
+test("milestone 3 migration blocks public admin signup and self role escalation", () => {
+  assert.match(milestone3Migration, /normalize_public_signup_role/);
+  assert.match(milestone3Migration, /else 'parent'::public\.user_role/);
+  assert.match(milestone3Migration, /prevent_profile_role_self_escalation/);
+  assert.match(milestone3Migration, /Users cannot change their own Tutor2U role/);
+});
+
+test("milestone 3 migration exposes approved public tutor view only", () => {
+  assert.match(milestone3Migration, /create or replace view public\.approved_tutor_public_profiles/);
+  assert.match(milestone3Migration, /where tp\.verification_status = 'approved'/);
 });

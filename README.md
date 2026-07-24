@@ -45,7 +45,7 @@ PAYMENT_PROVIDER=placeholder
 
 Jangan commit secret key.
 
-## New Milestone 2 Routes
+## Milestone Routes
 
 - Tutor onboarding: `http://localhost:3000/dashboard/tutor/onboarding`
 - Admin verification: `http://localhost:3000/dashboard/admin/tutor-applications`
@@ -65,6 +65,7 @@ Atau jalankan SQL migration berikut melalui SQL editor mengikut turutan:
 
 1. `supabase/migrations/0001_initial_schema.sql`
 2. `supabase/migrations/0002_tutor_onboarding_verification.sql`
+3. `supabase/migrations/0003_live_auth_onboarding_integration.sql`
 
 3. Jalankan seed data:
 
@@ -166,3 +167,5 @@ Language selection is stored in the `tutor2u_locale` cookie. Older Fasa 1 pages 
 Payment gateway masih placeholder dalam Fasa 1, tetapi jadual `payments` dan `tutor_payouts` sudah bersedia untuk integrasi provider sebenar.
 
 Tutor onboarding and admin verification are implemented as local demo flows with production-oriented database/RLS architecture. Live persistence requires wiring the new routes to Supabase server actions and Storage signed URL APIs.
+
+Milestone 3 adds the first live server integration layer: Supabase Auth actions, callback route, dashboard guards, onboarding save/submit actions, private document upload route, admin verification actions and approved tutor marketplace reads. Apply all migrations to a real Supabase project before treating the app as production-live.

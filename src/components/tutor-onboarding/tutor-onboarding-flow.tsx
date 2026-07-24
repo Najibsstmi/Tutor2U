@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, CheckCircle2, FileText, LockKeyhole, Plus, Trash2 } from "lucide-react";
-import { Controller, useFieldArray, useForm, type FieldPath, type Resolver, type UseFormReturn } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch, type FieldPath, type Resolver, type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,9 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslations } from "@/lib/i18n/use-translations";
+import { saveTutorApplicationDraft, submitTutorApplicationLive } from "@/lib/tutor-onboarding/live-actions";
 import {
   categoryOptions,
   curriculumOptions,
@@ -26,11 +26,8 @@ import {
   subjectOptions,
   type Option,
 } from "@/lib/tutor-onboarding/options";
-import { assertTransition, type TutorApplicationStatus } from "@/lib/tutor-onboarding/status-transitions";
-import { createTutorApplicationSchema, type TutorApplicationFormValues, type UploadValue } from "@/lib/tutor-onboarding/validation";
-
-const draftStorageKey = "tutor2u_tutor_application_draft";
-const actorProfileId = "tutor-demo-owner";
+import type { TutorApplicationStatus } from "@/lib/tutor-onboarding/status-transitions";
+import { createTutorApplicationSchema, type TutorApplicationFormValues } from "@/lib/tutor-onboarding/validation";
 
 const stepKeys = [
   "personal",
@@ -56,166 +53,33 @@ const stepFieldGroups = [
   ["declarations"],
 ] as const;
 
-const defaultUpload = (name: string, type = "application/pdf", size = 420000): UploadValue => ({ name, type, size });
-
-const defaultValues: TutorApplicationFormValues = {
-  personal: {
-    fullName: "Nur Aisyah Rahman",
-    displayName: "Cikgu Aisyah Rahman",
-    profilePhoto: defaultUpload("profile-photo.png", "image/png", 280000),
-    gender: "female",
-    dateOfBirth: "1990-04-12",
-    nationality: "Malaysia",
-    state: "Kuala Lumpur",
-    district: "Kuala Lumpur",
-    postcode: "50480",
-    preferredLanguage: "Bahasa Melayu",
-    shortBiography:
-      "Guru Matematik berpengalaman yang membantu murid SPM membina asas algebra dan keyakinan menjawab soalan KBAT.",
-  },
-  identity: {
-    documentType: "mykad",
-    identificationNumber: "900412-14-0000",
-    frontDocument: defaultUpload("mykad-front.pdf"),
-    backDocument: defaultUpload("mykad-back.pdf"),
-    consent: true,
-  },
-  qualifications: [
-    {
-      level: "Sarjana Muda",
-      title: "Ijazah Sarjana Muda Pendidikan Matematik",
-      institution: "Universiti Malaya",
-      fieldOfStudy: "Pendidikan Matematik",
-      graduationYear: 2013,
-      certificate: defaultUpload("degree-certificate.pdf"),
-    },
-  ],
-  experience: {
-    years: 9,
-    currentOccupation: "Guru sekolah menengah",
-    isSchoolTeacher: true,
-    teachingInstitution: "SMK sekitar Kuala Lumpur",
-    biography: "Mengajar Matematik KSSM dan kelas intensif SPM dengan latihan bertahap serta analisis kesilapan.",
-    studentLevelsTaught: ["SPM", "Secondary school"],
-    teachingLanguages: ["Bahasa Melayu", "English"],
-    specialExpertise: ["Matematik Tambahan", "Teknik menjawab"],
-  },
-  selections: {
-    educationLevels: ["Secondary school", "SPM"],
-    curriculums: ["KSSM"],
-    subjects: ["Matematik", "Matematik Tambahan"],
-    categories: ["STEM", "SPM"],
-  },
-  serviceArea: {
-    mode: "both",
-    state: "Kuala Lumpur",
-    district: "Kuala Lumpur",
-    postcode: "50480",
-    radiusKm: 15,
-    travelFeeAmount: 20,
-    acceptsStudentHome: true,
-    acceptsTutorLocation: false,
-    acceptsPublicLocation: true,
-  },
-  rates: [
-    {
-      subject: "Matematik Tambahan",
-      educationLevel: "SPM",
-      mode: "online",
-      durationMinutes: 90,
-      groupType: "individual",
-      sessionType: "standard",
-      amount: 90,
-    },
-  ],
-  availability: [
-    {
-      dayOfWeek: 1,
-      startTime: "20:00",
-      endTime: "21:30",
-      timezone: "Asia/Kuala_Lumpur",
-      mode: "online",
-      active: true,
-    },
-  ],
-  declarations: {
-    accurate: true,
-    authentic: true,
-    terms: true,
-    childSafety: true,
-    noOffPlatformPayment: true,
-    qualityMonitoring: true,
-  },
+type TutorOnboardingFlowProps = {
+  initialValues: TutorApplicationFormValues;
+  initialStatus: TutorApplicationStatus;
+  initialHistory: string[];
 };
 
-type SavedDraft = {
-  values: TutorApplicationFormValues;
-  status: TutorApplicationStatus;
-  history: string[];
-};
-
-export function TutorOnboardingFlow() {
+export function TutorOnboardingFlow({ initialValues, initialStatus, initialHistory }: TutorOnboardingFlowProps) {
   const { locale, t } = useTranslations();
-  const [hydrated, setHydrated] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-  const [applicationStatus, setApplicationStatus] = useState<TutorApplicationStatus>("draft");
-  const [history, setHistory] = useState<string[]>([]);
+  const [applicationStatus, setApplicationStatus] = useState<TutorApplicationStatus>(initialStatus);
+  const [history, setHistory] = useState<string[]>(initialHistory);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [pendingFiles, setPendingFiles] = useState<Partial<Record<UploadFieldPath, File>>>({});
 
   const schema = useMemo(() => createTutorApplicationSchema(locale), [locale]);
   const form = useForm<TutorApplicationFormValues>({
     resolver: zodResolver(schema) as Resolver<TutorApplicationFormValues>,
     mode: "onBlur",
-    defaultValues,
+    defaultValues: initialValues,
   });
 
   const qualifications = useFieldArray({ control: form.control, name: "qualifications" });
   const rates = useFieldArray({ control: form.control, name: "rates" });
   const availability = useFieldArray({ control: form.control, name: "availability" });
-  const watchedValues = form.watch();
+  const watchedValues = useWatch({ control: form.control }) as TutorApplicationFormValues;
   const completionPercent = calculateCompletion(watchedValues);
   const canSubmit = applicationStatus === "draft" || applicationStatus === "changes_requested";
-
-  useEffect(() => {
-    const rawDraft = window.localStorage.getItem(draftStorageKey);
-
-    if (rawDraft) {
-      try {
-        const draft = JSON.parse(rawDraft) as SavedDraft;
-        form.reset(draft.values);
-        setApplicationStatus(draft.status);
-        setHistory(draft.history ?? []);
-      } catch {
-        window.localStorage.removeItem(draftStorageKey);
-      }
-    }
-
-    setHydrated(true);
-  }, [form]);
-
-  useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
-    const subscription = form.watch(() => {
-      setAutosaveState("saving");
-      const timeout = window.setTimeout(() => {
-        window.localStorage.setItem(
-          draftStorageKey,
-          JSON.stringify({ values: form.getValues(), status: applicationStatus, history } satisfies SavedDraft),
-        );
-        setAutosaveState("saved");
-      }, 500);
-      window.setTimeout(() => window.clearTimeout(timeout), 700);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [applicationStatus, form, history, hydrated]);
-
-  if (!hydrated) {
-    return <OnboardingSkeleton />;
-  }
 
   async function goNext() {
     const fields = stepFieldGroups[activeStep];
@@ -233,38 +97,67 @@ export function TutorOnboardingFlow() {
     setActiveStep((current) => Math.max(current - 1, 0));
   }
 
-  function saveDraft() {
-    window.localStorage.setItem(
-      draftStorageKey,
-      JSON.stringify({ values: form.getValues(), status: applicationStatus, history } satisfies SavedDraft),
-    );
-    toast.success(t("onboarding.draftSaved"));
-  }
-
-  function submitApplication(values: TutorApplicationFormValues) {
-    const nextStatus: TutorApplicationStatus = applicationStatus === "changes_requested" ? "resubmitted" : "submitted";
+  async function saveDraft() {
+    setAutosaveState("saving");
 
     try {
-      assertTransition({
-        actorRole: "tutor",
-        actorProfileId,
-        ownerProfileId: actorProfileId,
-        from: applicationStatus,
-        to: nextStatus,
-      });
-    } catch {
-      toast.error(t("adminVerification.invalidTransition"));
-      return;
-    }
+      const result = await saveTutorApplicationDraft({ values: form.getValues(), locale });
 
-    const historyItem = `${new Date().toLocaleString(locale === "ms" ? "ms-MY" : "en-MY")} - ${t(`status.${nextStatus}`)}`;
-    setApplicationStatus(nextStatus);
-    setHistory((current) => [historyItem, ...current]);
-    window.localStorage.setItem(
-      draftStorageKey,
-      JSON.stringify({ values, status: nextStatus, history: [historyItem, ...history] } satisfies SavedDraft),
-    );
-    toast.success(t(nextStatus === "resubmitted" ? "onboarding.resubmitSuccess" : "onboarding.submitSuccess"));
+      if (!result.ok) {
+        setAutosaveState("idle");
+        toast.error(result.message);
+        return;
+      }
+
+      if (result.applicationId) {
+        await uploadPendingFiles(result.applicationId);
+      }
+
+      if (result.status) {
+        setApplicationStatus(result.status);
+      }
+
+      setAutosaveState("saved");
+      toast.success(result.message);
+    } catch (error) {
+      setAutosaveState("idle");
+      toast.error(error instanceof Error ? error.message : "Upload gagal.");
+    }
+  }
+
+  async function submitApplication(values: TutorApplicationFormValues) {
+    const nextStatus: TutorApplicationStatus = applicationStatus === "changes_requested" ? "resubmitted" : "submitted";
+    setAutosaveState("saving");
+
+    try {
+      const draftResult = await saveTutorApplicationDraft({ values, locale });
+
+      if (!draftResult.ok || !draftResult.applicationId) {
+        setAutosaveState("idle");
+        toast.error(draftResult.message);
+        return;
+      }
+
+      await uploadPendingFiles(draftResult.applicationId);
+
+      const result = await submitTutorApplicationLive({ values, locale });
+
+      if (!result.ok) {
+        setAutosaveState("idle");
+        toast.error(result.message);
+        return;
+      }
+
+      const serverStatus = result.status ?? nextStatus;
+      const historyItem = `${new Date().toLocaleString(locale === "ms" ? "ms-MY" : "en-MY")} - ${t(`status.${serverStatus}`)}`;
+      setApplicationStatus(serverStatus);
+      setHistory((current) => [historyItem, ...current]);
+      setAutosaveState("saved");
+      toast.success(result.message);
+    } catch (error) {
+      setAutosaveState("idle");
+      toast.error(error instanceof Error ? error.message : t("adminVerification.invalidTransition"));
+    }
   }
 
   const errors = form.formState.errors;
@@ -345,7 +238,7 @@ export function TutorOnboardingFlow() {
               </Alert>
             )}
 
-            {activeStep === 0 && <PersonalStep form={form} t={t} />}
+            {activeStep === 0 && <PersonalStep form={form} t={t} onUpload={setUploadValue} />}
             {activeStep === 1 && <IdentityStep form={form} t={t} onUpload={setUploadValue} />}
             {activeStep === 2 && <QualificationsStep form={form} fields={qualifications.fields} append={qualifications.append} remove={qualifications.remove} t={t} onUpload={setUploadValue} />}
             {activeStep === 3 && <ExperienceStep form={form} t={t} />}
@@ -397,6 +290,32 @@ export function TutorOnboardingFlow() {
     }
 
     form.setValue(path, { name: file.name, type: file.type, size: file.size }, { shouldValidate: true, shouldDirty: true });
+    setPendingFiles((current) => ({ ...current, [path]: file }));
+  }
+
+  async function uploadPendingFiles(applicationId: string) {
+    const uploadEntries = Object.entries(pendingFiles) as Array<[UploadFieldPath, File]>;
+
+    for (const [path, file] of uploadEntries) {
+      const formData = new FormData();
+      formData.append("applicationId", applicationId);
+      formData.append("scope", scopeForUploadPath(path));
+      formData.append("file", file);
+
+      const response = await fetch("/api/tutor-onboarding/documents", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "Upload gagal.");
+      }
+    }
+
+    if (uploadEntries.length) {
+      setPendingFiles({});
+    }
   }
 }
 
@@ -408,7 +327,31 @@ type UploadFieldPath =
   | "identity.backDocument"
   | `qualifications.${number}.certificate`;
 
-function PersonalStep({ form, t }: { form: FormHandle; t: TFunction }) {
+function scopeForUploadPath(path: UploadFieldPath) {
+  if (path === "personal.profilePhoto") {
+    return "profile_photo";
+  }
+
+  if (path === "identity.frontDocument") {
+    return "identity_front";
+  }
+
+  if (path === "identity.backDocument") {
+    return "identity_back";
+  }
+
+  return "qualification";
+}
+
+function PersonalStep({
+  form,
+  t,
+  onUpload,
+}: {
+  form: FormHandle;
+  t: TFunction;
+  onUpload: (path: UploadFieldPath, file: File | undefined) => void;
+}) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <TextField form={form} name="personal.fullName" label={t("onboarding.fields.fullName")} />
@@ -437,7 +380,7 @@ function PersonalStep({ form, t }: { form: FormHandle; t: TFunction }) {
           { value: "English", label: t("common.english") },
         ]}
       />
-      <FileField form={form} name="personal.profilePhoto" label={t("onboarding.fields.profilePhoto")} optional t={t} />
+      <FileField form={form} name="personal.profilePhoto" label={t("onboarding.fields.profilePhoto")} optional t={t} onUpload={onUpload} />
       <div className="space-y-2 md:col-span-2">
         <Label htmlFor="personal.shortBiography">{t("onboarding.fields.shortBiography")}</Label>
         <Textarea id="personal.shortBiography" {...form.register("personal.shortBiography")} />
@@ -922,12 +865,14 @@ function FileField({
   label,
   optional,
   t,
+  onUpload,
 }: {
   form: FormHandle;
   name: UploadFieldPath;
   label: string;
   optional?: boolean;
   t: TFunction;
+  onUpload: (path: UploadFieldPath, file: File | undefined) => void;
 }) {
   return (
     <FileInput
@@ -935,11 +880,7 @@ function FileField({
       current={form.watch(name)?.name}
       optional={optional}
       t={t}
-      onChange={(file) => {
-        if (file) {
-          form.setValue(name, { name: file.name, type: file.type, size: file.size }, { shouldDirty: true, shouldValidate: true });
-        }
-      }}
+      onChange={(file) => onUpload(name, file)}
     />
   );
 }
@@ -1057,18 +998,6 @@ function FieldError({ message }: { message?: string }) {
 
 function EmptyState({ t }: { t: TFunction }) {
   return <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">{t("common.empty")}</p>;
-}
-
-function OnboardingSkeleton() {
-  return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      <div className="space-y-4">
-        <Skeleton className="h-40 rounded-lg" />
-        <Skeleton className="h-80 rounded-lg" />
-      </div>
-      <Skeleton className="h-[640px] rounded-lg" />
-    </div>
-  );
 }
 
 function localizedOptions(options: Option[], t: TFunction) {

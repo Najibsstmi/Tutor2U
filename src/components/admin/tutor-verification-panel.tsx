@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { FileSearch, LockKeyhole, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,13 +24,16 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  createAdminDocumentSignedUrl,
+  updateTutorApplicationStatus,
+  updateTutorDocumentVerification,
+} from "@/lib/admin/verification-actions";
 import { useTranslations } from "@/lib/i18n/use-translations";
-import { demoTutorApplications } from "@/lib/tutor-onboarding/demo-applications";
 import { stateOptions, subjectOptions } from "@/lib/tutor-onboarding/options";
-import { assertTransition, type TutorApplicationStatus } from "@/lib/tutor-onboarding/status-transitions";
+import type { TutorApplicationStatus } from "@/lib/tutor-onboarding/status-transitions";
 import type { TutorApplication } from "@/lib/tutor-onboarding/types";
 
-const adminProfileId = "admin-demo-profile";
 const localeDateOptions: Intl.DateTimeFormatOptions = {
   year: "numeric",
   month: "short",
@@ -45,9 +49,14 @@ type PendingAction = {
   requiresReason: boolean;
 };
 
-export function AdminTutorVerificationPanel() {
+type AdminTutorVerificationPanelProps = {
+  applications: TutorApplication[];
+};
+
+export function AdminTutorVerificationPanel({ applications: initialApplications }: AdminTutorVerificationPanelProps) {
+  const router = useRouter();
   const { locale, t } = useTranslations();
-  const [applications, setApplications] = useState(demoTutorApplications);
+  const [applications, setApplications] = useState(initialApplications);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
@@ -55,6 +64,7 @@ export function AdminTutorVerificationPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [signedDocumentId, setSignedDocumentId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [reason, setReason] = useState("");
 
   const selectedApplication = applications.find((application) => application.id === selectedId) ?? null;
@@ -79,7 +89,7 @@ export function AdminTutorVerificationPanel() {
     setPendingAction(action);
   }
 
-  function confirmPendingAction() {
+  async function confirmPendingAction() {
     if (!pendingAction) {
       return;
     }
@@ -95,56 +105,71 @@ export function AdminTutorVerificationPanel() {
       return;
     }
 
+    const note = reason.trim() || t(`adminVerification.${pendingAction.actionKey}`);
+    const timestamp = new Date().toISOString();
+    setActionLoading(true);
+
     try {
-      assertTransition({
-        actorRole: "admin",
-        actorProfileId: adminProfileId,
-        ownerProfileId: application.ownerProfileId,
-        from: application.status,
-        to: pendingAction.to,
+      const result = await updateTutorApplicationStatus({
+        applicationId: pendingAction.applicationId,
+        to: pendingAction.to as "under_review" | "changes_requested" | "approved" | "rejected" | "suspended",
+        reason: note,
       });
-    } catch {
-      toast.error(t("adminVerification.invalidTransition"));
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      setApplications((current) =>
+        current.map((item) =>
+          item.id === pendingAction.applicationId
+            ? {
+                ...item,
+                status: pendingAction.to,
+                reviewedAt: timestamp,
+                approvedAt: pendingAction.to === "approved" ? timestamp : item.approvedAt,
+                adminNotes: [{ ms: note, en: note }, ...item.adminNotes],
+                correctionNotes:
+                  pendingAction.to === "changes_requested" ? [{ ms: note, en: note }, ...item.correctionNotes] : item.correctionNotes,
+                history: [
+                  {
+                    id: `hist-${pendingAction.to}-${Date.now()}`,
+                    actorRole: "admin",
+                    action: `admin_${pendingAction.actionKey}`,
+                    oldStatus: item.status,
+                    newStatus: pendingAction.to,
+                    at: timestamp,
+                    note: { ms: note, en: note },
+                  },
+                  ...item.history,
+                ],
+              }
+            : item,
+        ),
+      );
+
+      setPendingAction(null);
+      setReason("");
+      router.refresh();
+      toast.success(t("adminVerification.actionSuccess"));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function updateDocumentStatus(applicationId: string, documentId: string, status: "verified" | "changes_requested") {
+    const result = await updateTutorDocumentVerification({
+      documentId,
+      status,
+      notes: t(`documentStatus.${status}`),
+    });
+
+    if (!result.ok) {
+      toast.error(result.message);
       return;
     }
 
-    const note = reason.trim() || t(`adminVerification.${pendingAction.actionKey}`);
-    const timestamp = new Date().toISOString();
-
-    setApplications((current) =>
-      current.map((item) =>
-        item.id === pendingAction.applicationId
-          ? {
-              ...item,
-              status: pendingAction.to,
-              reviewedAt: timestamp,
-              approvedAt: pendingAction.to === "approved" ? timestamp : item.approvedAt,
-              adminNotes: [{ ms: note, en: note }, ...item.adminNotes],
-              correctionNotes:
-                pendingAction.to === "changes_requested" ? [{ ms: note, en: note }, ...item.correctionNotes] : item.correctionNotes,
-              history: [
-                {
-                  id: `hist-${pendingAction.to}-${Date.now()}`,
-                  actorRole: "admin",
-                  action: `admin_${pendingAction.actionKey}`,
-                  oldStatus: item.status,
-                  newStatus: pendingAction.to,
-                  at: timestamp,
-                  note: { ms: note, en: note },
-                },
-                ...item.history,
-              ],
-            }
-          : item,
-      ),
-    );
-
-    setPendingAction(null);
-    setReason("");
-    toast.success(t("adminVerification.actionSuccess"));
-  }
-
-  function updateDocumentStatus(applicationId: string, documentId: string, status: "verified" | "changes_requested") {
     setApplications((current) =>
       current.map((application) =>
         application.id === applicationId
@@ -165,7 +190,20 @@ export function AdminTutorVerificationPanel() {
           : application,
       ),
     );
+    router.refresh();
     toast.success(t("adminVerification.actionSuccess"));
+  }
+
+  async function openSignedDocument(documentId: string) {
+    const result = await createAdminDocumentSignedUrl(documentId);
+
+    if (!result.ok || !result.url) {
+      toast.error(result.message);
+      return;
+    }
+
+    setSignedDocumentId(documentId);
+    window.open(result.url, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -314,7 +352,7 @@ export function AdminTutorVerificationPanel() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setSignedDocumentId(document.id)}>
+                        <Button size="sm" variant="outline" onClick={() => openSignedDocument(document.id)}>
                           {t("adminVerification.signedUrl")}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => updateDocumentStatus(selectedApplication.id, document.id, "verified")}>
@@ -363,8 +401,8 @@ export function AdminTutorVerificationPanel() {
             <Button type="button" variant="outline" onClick={() => setPendingAction(null)}>
               {t("common.cancel")}
             </Button>
-            <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={confirmPendingAction}>
-              {t("common.confirm")}
+            <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={confirmPendingAction} disabled={actionLoading}>
+              {actionLoading ? "Memproses..." : t("common.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
